@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Nucleic Acids Explorer</title>
+    <style>
+        /* Define science-themed color palette and general styles */
+        :root {
+            --bg-dark: #101620; /* Deep space/lab dark blue */
+            --node-dna-bg: #2a3d66; /* Steel blue */
+            --node-rna-bg: #4b6a90; /* Clear blue */
+            --element-c: #ff4500; /* Orange-red (Carbon) */
+            --element-h: #ffffff; /* White (Hydrogen) */
+            --element-o: #00ffaa; /* Teal (Oxygen) */
+            --element-n: #6a5acd; /* Purple (Nitrogen) */
+            --element-p: #ffd700; /* Gold (Phosphorus) */
+            --accent-green: #00ff88;
+            --accent-purple: #9a4dff;
+            --text-main: #e0f0ff;
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            scroll-behavior: smooth;
+        }
+
+        /* --- Bubble Background Animation --- */
+        #bubble-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .bubble {
+            position: absolute;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.05) 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            bottom: -50px;
+            animation: rise 10s infinite ease-in-out;
+            opacity: 0.6;
+        }
+
+        @keyframes rise {
+            0% { transform: translateY(0); opacity: 0; }
+            10% { opacity: 0.6; }
+            90% { opacity: 0.3; }
+            100% { transform: translateY(-110vh); opacity: 0; }
+        }
+
+        /* Generate multiple bubbles with random sizes and delays */
+        .bubble:nth-child(1) { width: 40px; height: 40px; left: 10%; animation-delay: 1s; animation-duration: 12s; }
+        .bubble:nth-child(2) { width: 60px; height: 60px; left: 20%; animation-delay: 2s; animation-duration: 8s; }
+        .bubble:nth-child(3) { width: 30px; height: 30px; left: 35%; animation-delay: 0s; animation-duration: 14s; }
+        .bubble:nth-child(4) { width: 50px; height: 50px; left: 50%; animation-delay: 4s; animation-duration: 10s; }
+        .bubble:nth-child(5) { width: 25px; height: 25px; left: 65%; animation-delay: 1s; animation-duration: 16s; }
+        .bubble:nth-child(6) { width: 70px; height: 70px; left: 80%; animation-delay: 3s; animation-duration: 9s; }
+        .bubble:nth-child(7) { width: 45px; height: 45px; left: 90%; animation-delay: 5s; animation-duration: 11s; }
+
+        /* --- Layout --- */
+        #main-title {
+            text-align: center;
+            padding: 40px 0;
+            font-size: 3rem;
+            color: var(--accent-green);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(0,255,136,0.5);
+            animation: textPulse 4s infinite;
+        }
+
+        @keyframes textPulse {
+            0%, 100% { text-shadow: 0 0 10px rgba(0,255,136,0.3); }
+            50% { text-shadow: 0 0 20px rgba(0,255,136,0.8); }
+        }
+
+        .map-section {
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        /* --- Map Container & Connections --- */
+        .map-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            padding: 50px 0;
+        }
+
+        /* SVG connections */
+        #map-connections {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        #map-connections line {
+            stroke: var(--accent-green);
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-dasharray: 8 8;
+            animation: dashMove 2s linear infinite;
+        }
+
+        @keyframes dashMove {
+            to { stroke-dashoffset: 32; }
+        }
+
+        /* --- Mind Map Nodes (Boxes) --- */
+        .node {
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 250px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            transform-style: preserve-3d;
+            perspective: 1000px;
+            border: 2px solid transparent;
+        }
+
+        /* Science-y hover and click effect */
+        .node:hover {
+            transform: scale(1.05) rotateY(5deg);
+            border-color: var(--accent-green);
+            box-shadow: 0 10px 30px rgba(0,255,136,0.3);
+        }
+
+        .node h2 {
+            margin: 0 0 15px;
+            font-size: 1.5rem;
+            color: var(--text-main);
+            position: relative;
+        }
+
+        .node h2::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        .node p {
+            margin: 0;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: rgba(224, 240, 255, 0.8);
+        }
+
+        /* Specific Node Styling */
+        .node-main {
+            background-color: #333; /* Dark gray for the core question */
+            margin: 0 30px;
+        }
+        .node-main h2::after { background-color: white; }
+
+        .node-info-p {
+            background-color: var(--node-dna-bg);
+            border: 2px solid var(--element-p);
+        }
+        .node-info-p h2::after { background-color: var(--element-p); }
+
+        .node-info-n {
+            background-color: var(--node-rna-bg);
+            border: 2px solid var(--element-n);
+        }
+        .node-info-n h2::after { background-color: var(--element-n); }
+
+        /* Icon details inside nodes */
+        .node-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--accent-green);
+        }
+
+        /* --- Extra Information (Lower Section) --- */
+        .info-panel {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px;
+            background: linear-gradient(135deg, rgba(20, 26, 36, 0.8) 0%, rgba(40, 52, 72, 0.5) 100%);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--node-rna-bg);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .info-card:hover {
+            border-color: var(--accent-green);
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateY(-5px);
+        }
+
+        .info-card h3 {
+            color: var(--accent-green);
+            margin-top: 0;
+            font-size: 1.3rem;
+        }
+
+        /* Element visualization */
+        .element-grid {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .element-tag {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #000;
+        }
+        .tag-c { background-color: var(--element-c); }
+        .tag-h { background-color: var(--element-h); }
+        .tag-o { background-color: var(--element-o); }
+        .tag-n { background-color: var(--element-n); }
+        .tag-p { background-color: var(--element-p); color: #fff; }
+
+        /* Bubbly list items */
+        .bubbly-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .bubbly-list li {
+            padding-left: 20px;
+            margin-bottom: 8px;
+            position: relative;
+        }
+        .bubbly-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 5px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--accent-green);
+            box-shadow: 0 0 5px var(--accent-green);
+        }
+
+        /* Bubbly Footer */
+        footer {
+            text-align: center;
+            padding: 50px 0;
+            position: relative;
+        }
+
+        .footer-bubbles {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+        .foot-bubble {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .foot-bubble:hover {
+            border-color: var(--accent-purple);
+            transform: scale(1.1);
+        }
+        .foot-icon { font-size: 2rem; color: #fff; }
+
+    </style>
+</head>
+<body>
+
+    <div id="bubble-container">
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+    </div>
+
+    <h1 id="main-title">Nucleic Acid Insights</h1>
+
+    <section class="map-section">
+        <div class="map-container" id="def-map">
+            <svg id="map-connections">
+                <line x1="100" y1="100" x2="350" y2="100" />
+            </svg>
+            
+            <div class="node node-main" onclick="scrollToElement('definition-section')">
+                <div class="node-icon">&#9776;</div> <h2>Summary</h2>
+                <p>The core definition of a nucleotide.</p>
+            </div>
+            
+            <div class="node node-info-n" id="nucleotide-node" onclick="scrollToElement('components-section')">
+                <div class="node-icon">&#11118;</div> <h2>Nucleotide Structure</h2>
+                <p>What is a nucleotide?</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="definition-section" class="info-panel">
+        <div class="info-card">
+            <h3>&#10148; What is a nucleotide?</h3>
+            <p>A nucleotide is the monomer, or building block, of nucleic acids (DNA and RNA). It is like a biological Lego piece. To build the complex polymers like DNA, these nucleotide pieces are linked together in a long chain.</p>
+            <p><strong>Think of it like:</strong> One single Lego brick (the nucleotide) joins with hundreds more to build a large Lego molecule (DNA/RNA).</p>
+        </div>
+        <div class="info-card">
+            <h3><div class="node-icon">&#11118;</div> Components of a Nucleotide</h3>
+            <p>Every single nucleotide consists of three fundamental parts joined together:</p>
+            <ol>
+                <li><strong>Phosphate Group:</strong> Connects nucleotides.</li>
+                <li><strong>Pentose Sugar:</strong> The central 'ring'.</li>
+                <li><strong>Nitrogenous Base:</strong> The variable part (A, T, C, G or U).</li>
+            </ol>
+        </div>
+    </section>
+
+    <section class="map-section">
+        <div class="map-container">
+            <svg id="map-connections">
+                <line x1="100" y1="100" x2="350" y2="100" />
+            </svg>
+            
+            <div class="node node-main" onclick="scrollToElement('details-panel')">
+                <div class="node-icon">&#128214;</div> <h2>The Big Question</h2>
+                <p>What is the difference between DNA and RNA?</p>
+            </div>
+            
+            <div class="node node-info-p" id="diff-node" onclick="scrollToElement('details-panel')">
+                <div class="node-icon">&#10031;</div> <h2>Differences Explained</h2>
+                <p>Click for the detailed breakdown.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="components-section" class="info-panel">
+        <div class="info-card">
+            <h3><div class="node-icon">&#128300;</div> 1. Elements Present</h3>
+            <p>What elements are present in nucleic acids? The essential atomic components that build these molecules are:</p>
+            <div class="element-grid">
+                <span class="element-tag tag-c">Carbon (C)</span>
+                <span class="element-tag tag-h">Hydrogen (H)</span>
+                <span class="element-tag tag-o">Oxygen (O)</span>
+                <span class="element-tag tag-n">Nitrogen (N)</span>
+                <span class="element-tag tag-p">Phosphorus (P)</span>
+            </div>
+            <p>These elements create the backbone and the bases of the molecule.</p>
+        </div>
+        
+        <div class="info-card">
+            <h3><div class="node-icon">&#128302;</div> 2. Functions of Nucleic Acids</h3>
+            <p>Their major, essential role in all life is the storage and transmission of genetic information.</p>
+            <ul class="bubbly-list">
+                <li>DNA: Stores the long-term blueprint of how to build an organism.</li>
+                <li>RNA: Acts as a messenger and machinery to convert the DNA code into proteins.</li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="map-section" style="padding-top: 20px;">
+        <div class="info-panel" style="grid-template-columns: 1fr;">
+            <div class="info-card" id="details-panel" style="border: 2px solid var(--accent-purple);">
+                <h3 style="color: var(--accent-purple);">&#10024; DNA & Importance for Life</h3>
+                <p>Why is DNA important for life? DNA is the molecular blueprint, the master instruction manual for all living things. It is critical for:</p>
+                <p>1. **Development & Growth:** Providing the code to grow from a single cell into a complex organism.<br>
+                   2. **Function:** Coding for the proteins that build cells and carry out all life-sustaining chemical reactions (metabolism).<br>
+                   3. **Reproduction:** Ensuring that all hereditary information is accurately passed from parent to offspring, allowing traits to endure.</p>
+                <p><strong>Analogy:</strong> If a living organism is a functioning smartphone, DNA is the entire operating system (iOS or Android) and all the apps' source code. Without it, you have no function.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-bubbles">
+            <div class="foot-bubble"><span class="foot-icon">A</span></div>
+            <div class="foot-bubble"><span class="foot-icon">T</span></div>
+            <div class="foot-bubble"><span class="foot-icon">C</span></div>
+            <div class="foot-bubble"><span class="foot-icon">G</span></div>
+            <div class="foot-bubble"><span class="foot-icon">U</span></div>
+        </div>
+        <p style="opacity: 0.5;">Interactive Nucleic Acids Explorer | Biology Series</p>
+    </footer>
+
+    <script>
+        // Position the connections dynamically so they follow the nodes
+        function positionConnections() {
+            const svg = document.getElementById('map-connections');
+            const nodes1 = document.querySelectorAll('#def-map .node');
+            if (nodes1.length < 2) return;
+            
+            const line1 = svg.querySelector('line');
+            line1.setAttribute('x1', nodes1[0].offsetLeft + nodes1[0].offsetWidth);
+            line1.setAttribute('y1', nodes1[0].offsetTop + nodes1[0].offsetHeight / 2);
+            line1.setAttribute('x2', nodes1[1].offsetLeft);
+            line1.setAttribute('y2', nodes1[1].offsetTop + nodes1[1].offsetHeight / 2);
+            
+            // Adjust the overall map section height if nodes overlap
+            const mapContainer = document.querySelector('.map-container');
+            const nodes = document.querySelectorAll('.node');
+            let maxHeight = 0;
+            nodes.forEach(node => maxHeight = Math.max(maxHeight, node.offsetTop + node.offsetHeight));
+            mapContainer.style.minHeight = (maxHeight + 100) + 'px';
+        }
+
+        function scrollToElement(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        }
+
+        window.addEventListener('load', positionConnections);
+        window.addEventListener('resize', positionConnections);
+    </script>
+</body>
+</html>
